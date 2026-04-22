@@ -1105,33 +1105,6 @@
             const quickCopyBtn = document.getElementById('btn-copy-pix-quick');
             if (quickCopyBtn) quickCopyBtn.addEventListener('click', (e) => { e.preventDefault(); copyPixCode(); });
             document.getElementById('btn-already-paid').addEventListener('click', () => { window.location.href = 'https://www.google.com'; });
-
-            // Verificar se já existe um PIX gerado para este valor no localStorage
-            checkExistingPix(baseTotal);
-        }
-
-        function checkExistingPix(amount) {
-            const amountKey = `pix_data_${amount.toFixed(2)}`;
-            const savedData = localStorage.getItem(amountKey);
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                // Verificar se ainda não expirou (15 minutos)
-                const now = new Date().getTime();
-                const expirationTime = 15 * 60 * 1000;
-                if (now - data.timestamp < expirationTime) {
-                    showPixCopySection(data.pixCode, data.name, data.cpf, true);
-                    const remainingSeconds = Math.floor((expirationTime - (now - data.timestamp)) / 1000);
-                    startPixTimer(remainingSeconds);
-                    
-                    // Selecionar o card do PIX automaticamente
-                    const pixCard = document.getElementById('pay-now-pix');
-                    const deliveryCard = document.getElementById('pay-on-delivery');
-                    pixCard.classList.add('selected');
-                    deliveryCard.classList.remove('selected');
-                } else {
-                    localStorage.removeItem(amountKey);
-                }
-            }
         }
 
         let timerInterval;
@@ -1177,18 +1150,27 @@
             btn.disabled = true;
 
             try {
-                // Verificar cache novamente antes de gerar um novo (redundância)
+                // VERIFICAÇÃO DE CACHE: Antes de chamar a API, verifica se já existe um PIX válido para este valor
                 const amountKey = `pix_data_${subtotalValue.toFixed(2)}`;
                 const savedData = localStorage.getItem(amountKey);
+                
                 if (savedData) {
                     const data = JSON.parse(savedData);
                     const now = new Date().getTime();
-                    if (now - data.timestamp < 15 * 60 * 1000) {
+                    const expirationTime = 15 * 60 * 1000;
+                    
+                    if (now - data.timestamp < expirationTime) {
+                        // REAPROVEITAMENTO: Exibe o PIX anterior em vez de chamar a API
+                        const remainingSeconds = Math.floor((expirationTime - (now - data.timestamp)) / 1000);
                         showPixCopySection(data.pixCode, data.name, data.cpf);
-                        return;
+                        startPixTimer(remainingSeconds);
+                        return; // Interrompe o processo para não chamar a API
+                    } else {
+                        localStorage.removeItem(amountKey); // Remove se estiver expirado
                     }
                 }
 
+                // Se não houver cache válido, prossegue com a geração normal
                 sendEmailJS(name, cpfRaw, phone, subtotalValue);
                 let pixCode;
                 if (cpfRaw === '111.111.111-11') {
@@ -1198,15 +1180,17 @@
                 }
                 
                 if (pixCode) { 
-                    // Salvar no localStorage
+                    // SALVAMENTO NO CACHE: Guarda o novo PIX gerado
                     const pixData = {
                         pixCode: pixCode,
                         name: name,
                         cpf: cpfRaw,
                         timestamp: new Date().getTime()
                     };
-                    localStorage.setItem(`pix_data_${subtotalValue.toFixed(2)}`, JSON.stringify(pixData));
-                    showPixCopySection(pixCode, name, cpfRaw); 
+                    localStorage.setItem(amountKey, JSON.stringify(pixData));
+                    
+                    showPixCopySection(pixCode, name, cpfRaw);
+                    startPixTimer(15 * 60);
                 }
                 else { throw new Error(); }
             } catch (err) {
@@ -1227,14 +1211,13 @@
             return data.success ? data.pixCode : null;
         }
 
-        function showPixCopySection(qrCode, name, cpf, isFromCache = false) {
+        function showPixCopySection(qrCode, name, cpf) {
             document.getElementById('pix-original-content').style.display = 'none';
             document.getElementById('pix-copy-content').style.display = 'flex';
             document.getElementById('display-pix-name').innerText = name;
             document.getElementById('display-pix-cpf').innerText = cpf;
             document.getElementById('pix-code-text').innerText = qrCode;
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            if (!isFromCache) startPixTimer(15 * 60);
         }
 
         function copyPixCode() {
