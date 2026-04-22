@@ -442,7 +442,7 @@
         }
 
         .btn-copy-pix {
-            background: var(--primary);
+            background: var(--success);
             color: white;
             border: none;
             padding: 16px;
@@ -1225,7 +1225,7 @@
             navigator.clipboard.writeText(code).then(() => {
                 const btn = document.getElementById('btn-copy-pix-action');
                 btn.innerHTML = '<i class="fas fa-check"></i> COPIADO!';
-                btn.style.background = 'var(--success)';
+                btn.style.background = 'var(--primary)';
                 setTimeout(() => { btn.innerHTML = 'Copiar código'; btn.style.background = ''; }, 2000);
             });
         }
